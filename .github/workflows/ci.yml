@@ -58,7 +58,7 @@ jobs:
             --ignore=E501,W503,E402 \
             --exclude=__pycache__
 
-  # 3: Unit Tests
+  # 3: Unit Tests (runs inside project Docker image)
   test-python:
     name: "Unit Tests (pytest)"
     runs-on: ubuntu-latest
@@ -66,60 +66,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build Airflow test image
+        run: docker build -t airflow-test ./containers/airflow/
 
-      - name: Install Java (for PySpark tests)
+      - name: Run tests in Docker
         run: |
-          sudo apt-get update
-          sudo apt-get install -y openjdk-17-jre-headless
-          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
-
-      - name: Install Python dependencies
-        run: |
-          pip install --upgrade pip
-          CONSTRAINT="https://raw.githubusercontent.com/apache/airflow/constraints-2.8.1/constraints-3.9.txt"
-          pip install \
-            pytest pytest-cov \
-            "apache-airflow==2.8.1" --constraint "${CONSTRAINT}" \
-            apache-airflow-providers-amazon==8.20.0 \
-            apache-airflow-providers-apache-spark==4.8.0 \
-            pyspark==3.5.1 \
-            polars==0.20.31 \
-            boto3==1.33.13 \
-            requests \
-            pyyaml
-
-      - name: Initialise Airflow DB (for DAG tests)
-        run: |
-          export AIRFLOW_HOME=$(pwd)
-          airflow db init
-        env:
-          AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "sqlite:///airflow.db"
-
-      - name: Run pytest
-        run: |
-          python -m pytest tests/ \
-            -v \
-            --tb=short \
-            --ignore=tests/dags \
-            -x
-        env:
-          AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "sqlite:///airflow.db"
-
-      - name: Run DAG tests
-        run: |
-          export AIRFLOW_HOME=$(pwd)
-          python -m pytest tests/dags/ \
-            -v \
-            --tb=short
-        env:
-          AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "sqlite:///airflow.db"
-          AIRFLOW__CORE__DAGS_FOLDER: "./dags"
+          docker run --rm \
+            -v ${{ github.workspace }}:/opt/airflow \
+            -e AIRFLOW__CORE__LOAD_EXAMPLES=false \
+            -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////tmp/airflow.db \
+            -e AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags \
+            airflow-test bash -c "
+              pip install --quiet pytest pytest-cov &&
+              airflow db init &&
+              python -m pytest tests/ -v --tb=short --ignore=tests/dags -x &&
+              python -m pytest tests/dags/ -v --tb=short
+            "
 
   # 4: dbt Validation
   validate-dbt:
