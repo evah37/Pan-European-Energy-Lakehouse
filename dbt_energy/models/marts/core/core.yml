@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: dim_country
+    columns:
+      - name: country_code
+        data_tests:
+          - unique
+          - not_null
+
+  - name: dim_date
+    columns:
+      - name: time_key
+        data_tests:
+          - unique
+          - not_null
+
+  - name: dim_energy_metrics
+    columns:
+      - name: metric_code
+        data_tests:
+          - unique
+          - not_null
+
+  - name: fct_energy_hourly
+    columns:
+      - name: energy_event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: country_code
+        data_tests:
+          - relationships:
+              to: ref('dim_country')
+              field: country_code
+
+  - name: fct_price_baselines
+    description: "Statistical baselines for price anomaly detection"
+    columns:
+      - name: country_code
+        data_tests:
+          - not_null
+      - name: avg_price_baseline
+        data_tests:
+          - not_null

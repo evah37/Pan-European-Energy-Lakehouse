@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: mrt_financial_risk
+    description: "Analysis of costs incurred during Dunkelflaute (low wind/solar) events."
+    columns:
+      - name: estimated_risk_premium_eur
+        description: "Additional cost paid compared to yearly average due to the event."
+
+  - name: mrt_duck_curve_monthly
+    description: "Aggregated hourly profiles to visualize the Duck Curve phenomenon."
+    columns:
+      - name: avg_net_load
+        description: "Net Load (Load - Renewable), critical for storage planning."
+
+  - name: mrt_country_green_performance
+    description: "Sensitivity analysis of grid stability across different renewable penetration levels."
+    columns:
+      - name: penetration_bucket
+        description: "Buckets of renewable penetration."
+      - name: avg_price_volatility
+        description: "Average price standard deviation in this bucket."
+
+  - name: mrt_price_anomaly_detection
+    description: "Pre-calculated anomaly scores for Module 6 live monitoring."
+    columns:
+      - name: price_z_score
+        description: "Standard deviations away from the historical mean."
+        data_tests:
+          - not_null

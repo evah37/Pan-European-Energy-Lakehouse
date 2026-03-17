@@ -1,0 +1,33 @@
+code,country_name,eu_region
+AT,Austria,Central Europe
+DE_LU,Germany-Luxembourg,Central Europe
+DK_1,Denmark (Jutland),Northern Europe
+DK_2,Denmark (Zealand),Northern Europe
+GB_GBN,Great Britain,Western Europe
+IE_sem,Ireland (SEM),Western Europe
+IT_BRNN,Italy (Brindisi),Southern Europe
+IT_CNOR,Italy (Central North),Southern Europe
+IT_CSUD,Italy (Central South),Southern Europe
+IT_FOGN,Italy (Foggia),Southern Europe
+IT_GR,Italy-Greece Interconnector,Southern Europe
+IT_NORD,Italy (North),Southern Europe
+IT_NORD_AT,Italy-Austria Interconnector,Southern Europe
+IT_NORD_CH,Italy-Switzerland Interconnector,Southern Europe
+IT_NORD_FR,Italy-France Interconnector,Southern Europe
+IT_NORD_SI,Italy-Slovenia Interconnector,Southern Europe
+IT_PRGP,Italy (Priolo Gargallo),Southern Europe
+IT_ROSN,Italy (Rossano),Southern Europe
+IT_SACO_AC,Italy-Corsica AC,Southern Europe
+IT_SACO_DC,Italy-Corsica DC,Southern Europe
+IT_SARD,Italy (Sardinia),Southern Europe
+IT_SICI,Italy (Sicily),Southern Europe
+IT_SUD,Italy (South),Southern Europe
+NO_1,Norway (Oslo),Northern Europe
+NO_2,Norway (Kristiansand),Northern Europe
+NO_3,Norway (Trondheim),Northern Europe
+NO_4,Norway (Tromsø),Northern Europe
+NO_5,Norway (Bergen),Northern Europe
+SE_1,Sweden (Luleå),Northern Europe
+SE_2,Sweden (Sundsvall),Northern Europe
+SE_3,Sweden (Stockholm),Northern Europe
+SE_4,Sweden (Malmö),Northern Europe

@@ -1,0 +1,47 @@
+[sqlfluff]
+# DuckDB dialect
+dialect = duckdb
+templater = dbt
+# Max line length
+max_line_length = 120
+# Exclude auto-generated files
+exclude_rules = LT05
+
+[sqlfluff:templater:dbt]
+project_dir = dbt_energy
+profiles_dir = dbt_energy
+profile = energy_profile
+target = dev
+
+[sqlfluff:indentation]
+indent_unit = space
+tab_space_size = 4
+
+[sqlfluff:layout:type:comma]
+line_position = trailing
+
+# Capitalisation rules
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.identifiers]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.types]
+extended_capitalisation_policy = lower
+
+# Aliasing
+[sqlfluff:rules:aliasing.table]
+aliasing = explicit
+
+[sqlfluff:rules:aliasing.column]
+aliasing = explicit
+
+[sqlfluff:rules:aliasing.length]
+min_alias_length = 1

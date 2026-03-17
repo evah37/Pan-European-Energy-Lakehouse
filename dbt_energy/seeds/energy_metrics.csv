@@ -1,0 +1,6 @@
+metric_code,metric_name,category,is_renewable,unit
+price,Day-Ahead Price,Market,false,EUR/MWh
+load,Total Load,Consumption,false,MW
+solar,Solar Generation,Generation,true,MW
+wind,Wind Generation,Generation,true,MW
+residual_load,Net Residual Load,Computed,false,MW

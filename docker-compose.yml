@@ -1,0 +1,189 @@
+# version: '3'
+
+x-airflow-common: &airflow-common
+  build:
+    context: ./containers/airflow/
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth'
+    # Airflow 连接定义
+    AIRFLOW_CONN_POSTGRES_DEFAULT: postgres://airflow:airflow@postgres:5432/airflow
+    AIRFLOW_CONN_AWS_DEFAULT: aws://minio:minio123@?endpoint_url=http%3A%2F%2Fminio%3A9000
+    AIRFLOW_CONN_SPARK_DEFAULT: spark://spark-master:7077
+    # 显式设置 JAVA_HOME，双重保险
+    JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./data:/opt/airflow/data
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./scripts:/opt/airflow/scripts
+    - ./spark_jobs:/opt/airflow/spark_jobs
+    - ./dbt_energy:/opt/airflow/dbt_energy
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
+    minio:
+      condition: service_started
+
+services:
+  postgres:
+    container_name: postgres
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "airflow" ]
+      interval: 5s
+      retries: 5
+    restart: always
+    ports:
+      - "5432:5432"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: [ "CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"' ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    command: version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    command: server --console-address ":9001" /data
+    volumes:
+      - minio_data:/data
+
+  # --- Spark Cluster (Official Apache Images) ---
+  spark-master:
+    image: apache/spark:3.5.1
+    container_name: spark-master
+    # 官方镜像启动命令
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    ports:
+      - "9090:8080" # Web UI
+      - "7077:7077" # Master Port
+    volumes:
+      - ./spark_jobs:/opt/spark/spark_jobs
+      - ./data:/opt/spark/data
+
+  spark-worker:
+    image: apache/spark:3.5.1
+    container_name: spark-worker
+    # 官方镜像启动命令，必须显式指向 Master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_WORKER_CORES: 1
+      SPARK_WORKER_MEMORY: 1G
+    volumes:
+      - ./spark_jobs:/opt/spark/spark_jobs
+      - ./data:/opt/spark/data
+
+  streamlit:
+    image: python:3.9-slim
+    container_name: streamlit
+    working_dir: /app
+    volumes:
+      # 将宿主机 containers/streamlit 下的代码挂载到容器 /app
+      - ./containers/streamlit:/app
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minio
+      - MINIO_SECRET_KEY=minio123
+      - AWS_ACCESS_KEY_ID=minio
+      - AWS_SECRET_ACCESS_KEY=minio123
+      - AWS_REGION=us-east-1
+
+    command: >
+      bash -c "pip install --upgrade pip &&  pip install -r requirements.txt &&  streamlit run app.py --server.port=8501 --server.address=0.0.0.0"
+    ports:
+      - "8501:8501"
+    depends_on:
+      - minio
+    restart: always
+
+  awattar-producer:
+    image: python:3.9-slim
+    container_name: awattar-producer
+    working_dir: /app
+    volumes:
+      - ./scripts:/app
+    command: >
+      bash -c "pip install --quiet kafka-python requests && python /app/producer_awattar.py"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: always
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: redpanda
+    command:
+      - redpanda start
+      - --smp 1 # 限制 CPU 使用，适合开发环境
+      - --memory 1G
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      # 关键配置：告诉其他容器（Spark）通过 "redpanda:9092" 访问我
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+    ports:
+      - "19092:19092" # 外部访问端口 (如果你要在宿主机调试)
+      - "18081:18081" # Schema Registry
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: [ "CMD-SHELL", "rpk cluster health | grep -Pq 'Healthy:\\s+true'" ]
+      interval: 10s
+      retries: 5
+
+volumes:
+  minio_data:
+  redpanda_data:

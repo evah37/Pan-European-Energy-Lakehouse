@@ -1,0 +1,41 @@
+name: 'energy_project'
+version: '1.0.0'
+config-version: 2
+
+# project name
+profile: 'energy_profile'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# materialization strategy
+models:
+  energy_project:
+    # global default strategy: view
+    +materialized: view
+
+    # Staging layer configuration
+    staging:
+      +materialized: view
+
+    # Marts layer configuration
+    marts:
+      # strategy: external
+      +materialized: external
+      
+      # format: Parquet
+      +format: parquet
+      
+      core:
+        +tags: ["core", "gold"]
+      analytics:
+        +tags: ["analytics", "gold"]

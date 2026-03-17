@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: energy_lake
+    description: "MinIO Data Lake (Silver Layer)"
+    schema: main
+    tables:
+      # main features computed by Spark
+      - name: silver_features
+        description: "Cleaned energy features from Spark (Wide Format)"
+        meta:
+          external_location: "read_parquet('s3://energy-lake/silver/features/**/*.parquet', hive_partitioning=true)"
+
+      # price baselines computed by Spark
+      - name: silver_price_profile
+        description: "Statistical price baselines (Avg/Stddev by hour)"
+        meta:
+          external_location: "read_parquet('s3://energy-lake/silver/stats/price_profile/**/*.parquet', hive_partitioning=true)"

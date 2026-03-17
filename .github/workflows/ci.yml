@@ -1,0 +1,165 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel previous runs on same PR/branch
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.9"
+
+jobs:
+  # 1: SQL Linting
+  lint-sql:
+    name: "SQL Lint (sqlfluff)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install sqlfluff
+        run: pip install sqlfluff sqlfluff-templater-dbt dbt-core==1.8.2 dbt-duckdb==1.8.2
+
+      - name: Run sqlfluff lint
+        run: |
+          sqlfluff lint dbt_energy/models/ \
+            --dialect duckdb \
+            --exclude-rules LT05 \
+            --ignore templating \
+            || echo "::warning::sqlfluff found lint issues (non-blocking)"
+
+  # 2: Python Linting
+  lint-python:
+    name: "Python Lint (flake8)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install flake8
+        run: pip install flake8
+
+      - name: Run flake8
+        run: |
+          flake8 dags/ scripts/ spark_jobs/ \
+            --max-line-length=120 \
+            --ignore=E501,W503,E402 \
+            --exclude=__pycache__
+
+  # 3: Unit Tests
+  test-python:
+    name: "Unit Tests (pytest)"
+    runs-on: ubuntu-latest
+    needs: [lint-python]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Java (for PySpark tests)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jre-headless
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install \
+            pytest pytest-cov \
+            apache-airflow==2.8.1 \
+            apache-airflow-providers-amazon==8.20.0 \
+            apache-airflow-providers-apache-spark==4.8.0 \
+            pyspark==3.5.1 \
+            polars==0.20.31 \
+            boto3==1.33.13 \
+            requests \
+            pyyaml
+
+      - name: Initialise Airflow DB (for DAG tests)
+        run: |
+          export AIRFLOW_HOME=$(pwd)
+          airflow db init
+        env:
+          AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "sqlite:///airflow.db"
+
+      - name: Run pytest
+        run: |
+          python -m pytest tests/ \
+            -v \
+            --tb=short \
+            --ignore=tests/dags \
+            -x
+        env:
+          AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "sqlite:///airflow.db"
+
+      - name: Run DAG tests
+        run: |
+          export AIRFLOW_HOME=$(pwd)
+          python -m pytest tests/dags/ \
+            -v \
+            --tb=short
+        env:
+          AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "sqlite:///airflow.db"
+          AIRFLOW__CORE__DAGS_FOLDER: "./dags"
+
+  # 4: dbt Validation
+  validate-dbt:
+    name: "dbt Parse"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dbt
+        run: pip install dbt-core==1.8.2 dbt-duckdb==1.8.2
+
+      - name: dbt parse (syntax validation)
+        run: |
+          cd dbt_energy
+          dbt parse --profiles-dir . --no-partial-parse
+        env:
+          DBT_PROFILES_DIR: ./dbt_energy
+
+  # 5: Terraform Validation
+  validate-terraform:
+    name: "Terraform Validate"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+        working-directory: terraform
+
+      - name: Terraform init
+        run: terraform init -backend=false
+        working-directory: terraform
+
+      - name: Terraform validate
+        run: terraform validate
+        working-directory: terraform

@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: stg_spark__energy
+    columns:
+      - name: energy_event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: price_eur_mwh
+        data_tests:
+          - not_null:
+              severity: warn 
+
+  - name: stg_spark__price_stats
+    columns:
+      - name: country_code
+        data_tests:
+          - not_null
