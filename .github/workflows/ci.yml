@@ -79,9 +79,10 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
+          CONSTRAINT="https://raw.githubusercontent.com/apache/airflow/constraints-2.8.1/constraints-3.9.txt"
           pip install \
             pytest pytest-cov \
-            apache-airflow==2.8.1 \
+            "apache-airflow==2.8.1" --constraint "${CONSTRAINT}" \
             apache-airflow-providers-amazon==8.20.0 \
             apache-airflow-providers-apache-spark==4.8.0 \
             pyspark==3.5.1 \
