@@ -73,6 +73,7 @@ jobs:
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/opt/airflow \
+            -e AIRFLOW_HOME=/tmp/airflow \
             -e AIRFLOW__CORE__LOAD_EXAMPLES=false \
             -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////tmp/airflow.db \
             -e AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags \
