@@ -78,7 +78,7 @@ jobs:
             -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////tmp/airflow.db \
             -e AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags \
             airflow-test bash -c "
-              pip install --quiet pytest pytest-cov &&
+              pip install --quiet pytest pytest-cov kafka-python &&
               airflow db init &&
               python -m pytest tests/ -v --tb=short --ignore=tests/dags -x &&
               python -m pytest tests/dags/ -v --tb=short
